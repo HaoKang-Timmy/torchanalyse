@@ -47,7 +47,9 @@ class Bmm(Operator):
         return b * n * m * p
     def get_gemms(self):
         #TODO might have some problems
-        return 1, 1, 1, 1
+        b, n, m = self.node.inputs[1].shape
+        b, m, p = self.node.inputs[2].shape
+        return n, p, m, b
 
 
 class Baddbmm(Operator):
@@ -66,7 +68,9 @@ class Baddbmm(Operator):
         return b * n * m * p
     def get_gemms(self):
         #TODO might have some problems
-        return 1, 1, 1, 1
+        b, n, m = self.node.inputs[1].shape
+        b, m, p = self.node.inputs[2].shape
+        return n, p, m, b
     
 class Matmul(Operator):
     # matmul A * B = C
@@ -95,7 +99,6 @@ class Matmul(Operator):
             #aten::matmul([..., n, m], [..., m, p])
         super().__init__(node,density)
     def get_tensors(self):
-        # C A B D
         return self.node.inputs[0].shape, self.node.inputs[1].shape, self.node.outputs[0].shape
     def get_num_ops(self):
         if self.type == 0:
@@ -127,7 +130,7 @@ class Matmul(Operator):
         return 1, 1, 1, 1
     
 class Mul(Operator):
-    # batch matmul and add A * B + C = D, ABC are (b,m,n) likewise
+    # A * b, b is constant
     def __init__(self,node,density=(1.0,1.0,1.0)):
         super().__init__(node,density)
     def get_tensors(self):
@@ -137,11 +140,13 @@ class Mul(Operator):
         return math.prod(output_shape)
     def get_gemms(self):
         #TODO might have some problems
+        if len(self.node.inputs[0].shape) != 1:
+            # inputs[0] is not the constant
+            
         return 1, 1, 1, 1
     
     
 class Convolution(Operator):
-    # batch matmul and add A * B + C = D, ABC are (b,m,n) likewise
     def __init__(self,node,density=(1.0,1.0,1.0)):
         super().__init__(node,density)
     def get_tensors(self):
@@ -158,7 +163,6 @@ class Convolution(Operator):
         return 1, 1, 1, 1
 
 class Norm(Operator):
-    # batch matmul and add A * B + C = D, ABC are (b,m,n) likewise
     def __init__(self,node,density=(1.0,1.0,1.0)):
         super().__init__(node,density)
     def get_tensors(self):

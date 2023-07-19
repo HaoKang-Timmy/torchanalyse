@@ -1,7 +1,7 @@
 import operator
 from functools import reduce
 
-__all__ = ['prod']
+__all__ = ["prod"]
 
 
 def prod(iterable):

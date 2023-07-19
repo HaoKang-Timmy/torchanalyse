@@ -18,7 +18,7 @@ class Operator(object):
             self.output = tensors[2]
         elif len(tensors) == 2:
             self.input_a = tensors[0]
-            self.input_w = None
+            self.input_w = 0
             self.output = tensors[1]
         elif len(tensors) == 4:
             # baddbmm

@@ -140,7 +140,7 @@ class Mul(Operator):
         return math.prod(output_shape)
     def get_gemms(self):
         #TODO might have some problems
-        if len(self.node.inputs[0].shape) != 1:
+        # if len(self.node.inputs[0].shape) != 1:
             # inputs[0] is not the constant
             
         return 1, 1, 1, 1

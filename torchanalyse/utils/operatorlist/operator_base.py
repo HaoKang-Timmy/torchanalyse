@@ -2,14 +2,24 @@ import numpy as np
 from operator import mul
 from math import ceil
 from .energy_cost import *
-
+import warnings
 op_type_dicts = {0: 'FC', 1: 'CONV2D', 2: 'DWCONV', 3: 'GEMM', 4: 'Logit', 5: 'Attend'}
 class Operator(object):
     def __init__(self,node, density=(1.0,1.0,1.0)):
         self.node = node
         self.density_a, self.density_w, self.density_o = density
-        self.input_a, self.input_w, self.output = self.get_tensors(node)
-        self.num_ops = self.get_num_ops(node)
+        tensors = self.get_tensors()
+        if len(tensors) == 3:
+            self.input_a = tensors[0]
+            self.input_w = tensors[1]
+            self.output = tensors[2]
+        elif len(tensors) == 2:
+            self.input_a = tensors[0]
+            self.input_w = None
+            self.output = tensors[1]
+        else:
+            warnings.warn("tensor size not imported:{}".format(node.operator))
+        self.num_ops = self.get_num_ops()
         self.set_mem_pin(*self.get_default_mem_loc())
 
     
@@ -320,8 +330,8 @@ class Operator(object):
         total_energy = min(energies)
         # saved_energy_rate = (mxu_energy-power_gated_mxu_energy)/mxu_energy
         ret = {
-            'Op Type': self.get_op_type(self.dim),
-            'Dimension': self.dim[:self.get_effective_dim_len()],
+            'Op Type': self.node.operator,
+            'Dimension': self.get_tensors(),
             'Bound': boundedness,
             'C/M ratio': com_to_mem_ratio,
             'Op Intensity': op_intensity,
@@ -339,6 +349,7 @@ class Operator(object):
             f'Compute Cycles': compute_time*system.frequency,
             f'Memory Cycles': memory_time*system.frequency,
             f'Sparsity':(1-self.density_w),
+            
             # f'MXU energy (uJ)': mxu_energy *1e6,
             # f'PG-MXU energy (uJ)': power_gated_mxu_energy *1e6,
             # f'Total energy (uJ)': power_gated_mxu_energy*1e6,

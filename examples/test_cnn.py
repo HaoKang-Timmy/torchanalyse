@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch
 import pandas as pd
 import torchvision
+
 if __name__ == "__main__":
     unit = Unit()
     system = System(
@@ -19,7 +20,7 @@ if __name__ == "__main__":
     out_features = 32
 
     model = torchvision.models.AlexNet()
-    inputs = torch.randn(1, 3,224,224)
+    inputs = torch.randn(1, 3, 224, 224)
     df = profiler(model, inputs, system, unit)
     df.to_csv("./test.csv")
 

@@ -1,7 +1,7 @@
 import warnings
 
-from .utils.operatorlist.operator_list import operator_list
-from .utils.trace import trace
+from .utils import operator_list
+from .utils import trace
 import pandas as pd
 import numpy as np
 

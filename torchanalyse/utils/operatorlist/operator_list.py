@@ -140,10 +140,8 @@ class Mul(Operator):
         return math.prod(output_shape)
     def get_gemms(self):
         #TODO might have some problems
-        # if len(self.node.inputs[0].shape) != 1:
-            # inputs[0] is not the constant
-            
-        return 1, 1, 1, 1
+        # this seems has nothing to do with gemm
+        return 0, 0, 0, 1
     
     
 class Convolution(Operator):
@@ -160,7 +158,12 @@ class Convolution(Operator):
         return math.prod(os) * ic * math.prod(ks)
     def get_gemms(self):
         #TODO might have some problems
-        return 1, 1, 1, 1
+        # if self.node.outputs[0].shape[1] == self.node.inputs[1].shape[0]:
+        #     # weight (H,B,N,D)
+        B,H,M,N = self.node.inputs[0].shape
+        B, H, M, D = self.node.outputs[0].shape
+        
+        return M, D, N, B*H
 
 class Norm(Operator):
     def __init__(self,node,density=(1.0,1.0,1.0)):
@@ -179,7 +182,7 @@ class Norm(Operator):
         return math.prod(os) if affine else 0
     def get_gemms(self):
         #TODO might have some problems
-        return 1, 1, 1, 1
+        return 0, 0, 0, 1
 class Avg(Operator):
     # batch matmul and add A * B + C = D, ABC are (b,m,n) likewise
     def __init__(self,node,density=(1.0,1.0,1.0)):
@@ -192,7 +195,7 @@ class Avg(Operator):
         return math.prod(os)
     def get_gemms(self):
         #TODO might have some problems
-        return 1, 1, 1, 1
+        return 0, 0, 0, 1
 class LeakyRelu(Operator):
     # batch matmul and add A * B + C = D, ABC are (b,m,n) likewise
     def __init__(self,node,density=(1.0,1.0,1.0)):
@@ -205,7 +208,7 @@ class LeakyRelu(Operator):
         return math.prod(os)
     def get_gemms(self):
         #TODO might have some problems
-        return 1, 1, 1, 1   
+        return 0, 0, 0, 1   
     
 class UpsampleBilinear2d(Operator):
     # batch matmul and add A * B + C = D, ABC are (b,m,n) likewise
@@ -219,7 +222,7 @@ class UpsampleBilinear2d(Operator):
         return math.prod(os) * 4
     def get_gemms(self):
         #TODO might have some problems
-        return 1, 1, 1, 1
+        return 0, 0, 0, 1
 operator_list = {
     'aten::addmm' :Addmm,
     'aten::addmv': Addmv,

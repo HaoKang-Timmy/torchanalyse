@@ -430,7 +430,7 @@ class Operator(object):
         # saved_energy_rate = (mxu_energy-power_gated_mxu_energy)/mxu_energy
         ret = {
             "Op Type": self.node.operator,
-            "Dimension": self.get_tensors(),
+            "Dimension(input, weight,output)": self.get_tensors(),
             "Bound": boundedness,
             "C/M ratio": com_to_mem_ratio,
             "Op Intensity": op_intensity,

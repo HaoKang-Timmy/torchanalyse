@@ -6,6 +6,14 @@ Please see the files at `/examples ` like `test_linear.py` and `test_transformer
 
 Basically, we use the `profiler` function in torch analyze.
 
+# How to install
+
+simply
+
+```
+pip3 install torchanalyse
+```
+
 # What will the result be like
 
 ## Result of linear layer

@@ -4,6 +4,7 @@ import math
 
 
 class Addmm(Operator):
+    # D = A * B + C  A(n.m) B(m,p) C(n,p)
     def __init__(self, node, density=None):
         super().__init__(node, density)
 
@@ -213,6 +214,7 @@ class Norm(Operator):
         return self.node.inputs[0].shape, self.node.outputs[0].shape
 
     def get_num_ops(self):
+        #macs
         if self.node.operator in ["aten::batch_norm", "aten::instance_norm"]:
             affine = self.node.inputs[1].shape is not None
         elif self.node.operator in ["aten::layer_norm", "aten::group_norm"]:

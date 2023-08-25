@@ -5,7 +5,7 @@ import math
 
 class Addmm(Operator):
     # D = A * B + C  A(n.m) B(m,p) C(n,p)
-    def __init__(self, node, density=None):
+    def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
 
     def get_tensors(self):
@@ -26,7 +26,7 @@ class Addmm(Operator):
 
 class Addmv(Operator):
     # matrix * vector p = 1
-    def __init__(self, node, density=None):
+    def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
 
     def get_tensors(self):
@@ -46,7 +46,7 @@ class Addmv(Operator):
 
 class Bmm(Operator):
     # batch matmul
-    def __init__(self, node, density=None):
+    def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
 
     def get_tensors(self):

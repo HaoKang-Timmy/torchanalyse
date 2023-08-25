@@ -55,14 +55,15 @@ class Bmm(Operator):
         return (b, n, m), (b, m, p), (b, n, p)
 
     def get_num_ops(self):
-        b, n, m = self.node.inputs[1].shape
-        b, m, p = self.node.inputs[2].shape
+        # print(self.node.inputs[1], self.node.inputs[2])
+        b, n, m = self.node.inputs[0].shape
+        b, m, p = self.node.inputs[1].shape
         return b * n * m * p
 
     def get_gemms(self):
         # TODO might have some problems
-        b, n, m = self.node.inputs[1].shape
-        b, m, p = self.node.inputs[2].shape
+        b, n, m = self.node.inputs[0].shape
+        b, m, p = self.node.inputs[1].shape
         return n, p, m, b
 
 

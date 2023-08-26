@@ -3,6 +3,7 @@ from .operator_base import Operator
 import math
 
 
+# get_gemms left, upper, contract, outer
 class Addmm(Operator):
     # D = A * B + C  A(n.m) B(m,p) C(n,p)
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
@@ -152,19 +153,49 @@ class Matmul(Operator):
 
     def get_gemms(self):
         # TODO might have some problems
-        return 1, 1, 1, 1
+        if self.type == 0:
+            contrat = self.node.inputs[0].shape[0]  # n
+            return 1, 1, contrat, 1
+        elif self.type == 1:
+            n, m = self.node.inputs[1].shape
+            return 1, m, n, 1
+        elif self.type == 2:
+            n, m = self.node.inputs[0].shape
+            return n, 1, m, 1
+        elif self.type == 3:
+            n, m = self.node.inputs[0].shape
+            m, p = self.node.inputs[1].shape
+            return n, p, m, 1
+        elif self.type == 4:
+            # aten::matmul([n], [..., n, m])
+            n = self.node.inputs[0].shape[0]
+            *b, n, m = self.node.inputs[1].shape
+            return 1, m, n, math.prod(b)
+        elif self.type == 5:
+            # aten::matmul([..., n, m], [m])
+            m = self.node.inputs[0].shape[0]
+            *b, n, m = self.node.inputs[1].shape
+            return n, 1, m, math.prod(b)
+        elif self.type == 6:
+            # aten::matmul([..., n, m], [..., m, p])
+            *a, n, m = self.node.inputs[0].shape
+            *b, m, p = self.node.inputs[1].shape
+            return n, p, m, math.prod(b)
 
 
 class Mul(Operator):
     # A * b, b is constant
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
+        # print(node.inputs[0].shape)
+        # print(node.inputs[1].shape)
+        # print(node.outputs[0].shape)
 
     def get_tensors(self):
         return (
-            self.node.inputs[0].shape,
-            self.node.inputs[1].shape,
-            self.node.outputs[0].shape,
+            self.node.inputs[0].shape if self.node.inputs[0].ndim != 0 else 1,
+            1,
+            self.node.outputs[0].shape if self.node.outputs[0].ndim != 0 else 1,
         )
 
     def get_num_ops(self):
@@ -215,7 +246,7 @@ class Norm(Operator):
         return self.node.inputs[0].shape, self.node.outputs[0].shape
 
     def get_num_ops(self):
-        #macs
+        # macs
         if self.node.operator in ["aten::batch_norm", "aten::instance_norm"]:
             affine = self.node.inputs[1].shape is not None
         elif self.node.operator in ["aten::layer_norm", "aten::group_norm"]:

@@ -5,14 +5,18 @@ from .utils import trace
 import pandas as pd
 import numpy as np
 
-__all__ = ["profiler"]
+__all__ = ["profiler", "tracegen"]
+
+def tracegen(model, input):
+    return  trace(model, input)
 
 
 def profiler(
-    model, input, system=None, unit=None, densities=None, intermediate_on_chip=False
+    model, input, system=None, unit=None, densities=None, intermediate_on_chip=False, graph = None
 ):
     op_result_list = []
-    graph = trace(model, input)
+    if graph is None:
+        graph = trace(model, input)
     flag = 0
     for i, node in enumerate(graph.nodes):
         if node.operator in operator_list.keys():

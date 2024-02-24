@@ -115,10 +115,6 @@ class ScaledDotProductAttention(Operator):       ## Matrix Execution Unit
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
         self.alu_type = 'mxu'
-        # print(self.node.inputs[0].shape) 
-        # print(self.node.inputs[1].shape)
-        # print(self.node.inputs[2].shape)
-        # print(self.node.outputs[0].shape)
 
     def get_tensors(self):
         # tensor = self.node.inputs[0].shape #Q
@@ -130,7 +126,9 @@ class ScaledDotProductAttention(Operator):       ## Matrix Execution Unit
         b, s, ev = np.prod(tensor[:-2]), tensor[-2], tensor[-1]
        
         # Q K V O
-        return self.node.inputs[0].shape, (b, s, e+ev), self.node.outputs[0].shape 
+        return (self.node.inputs[0].shape, 
+               (b, s, e+ev),
+                self.node.outputs[0].shape )
 
     def get_num_ops(self):
         tensor = self.node.inputs[0].shape #Q
@@ -253,11 +251,18 @@ class Mul(Operator):          ## Vector Execution Unit
         self.alu_type = 'mxu'
 
     def get_tensors(self):
-        return (
-            self.node.inputs[0].shape if self.node.inputs[0].ndim != 0 else 1,
-            1,
-            self.node.outputs[0].shape if self.node.outputs[0].ndim != 0 else 1,
-        )
+        if len(self.node.inputs) == 1: 
+            return (
+                self.node.inputs[0].shape if self.node.inputs[0].ndim != 0 else 1,
+                1,
+                self.node.outputs[0].shape if self.node.outputs[0].ndim != 0 else 1,
+            )
+        else:
+            return (
+                self.node.inputs[0].shape if self.node.inputs[0].ndim != 0 else 1,
+                self.node.inputs[1].shape if self.node.inputs[1].ndim != 0 else 1,
+                self.node.outputs[0].shape if self.node.outputs[0].ndim != 0 else 1,
+            ) 
 
     def get_num_ops(self):
         output_shape = self.node.outputs[0].shape
@@ -349,7 +354,10 @@ class Special_Func(Operator):          ## Vector Execution Unit
 
     def get_tensors(self):
         # input and output
-        return self.node.inputs[0].shape, self.node.outputs[0].shape
+        if self.node.inputs[0].shape is not None:
+            return self.node.inputs[0].shape, self.node.outputs[0].shape
+        else:
+            return self.node.inputs[1].shape, self.node.outputs[0].shape
 
     def get_num_ops(self):
         os = self.node.outputs[0].shape
@@ -477,5 +485,14 @@ operator_list = {
     "prim::listunpack": None,
     "prim::numtotensor": None,
     "prim::tupleconstruct": None,
+    "aten::scalarimplicit": None,
     "aten::scaled_dot_product_attention": ScaledDotProductAttention,
+    "aten::arange": None,
+    "aten::unsqueeze": None,
+    "aten::repeat": None,
+    "aten::pow":  Special_Func,
+    "aten::rsqrt": Special_Func,
+    "aten::type_as": None,
+    "aten::expand": None,
+    "aten::neg": Special_Func, 
 }

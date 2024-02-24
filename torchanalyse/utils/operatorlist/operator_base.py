@@ -87,10 +87,6 @@ class Operator(object):
     # Total number of memory paramters of layer / mem_BW.
     def get_ideal_memory_time(self, system):
         sz_list = self.get_sz_list(system)
-        # print (sz_list)
-        # print (system.get_bit_multiplier(type='M'))
-        # print (system.offchip_mem_bw)
-        # print (memory_time_offchip)
         memory_time_onchip = 0
         memory_time_offchip = 0
         for tensor_sz in sz_list:
@@ -156,11 +152,12 @@ class Operator(object):
         else:
             compute_efficiency = 1
         compute_efficiency = min(1, compute_efficiency)  ## Max efficiency is 1.0
+
+        num_ops = self.get_effective_num_ops(system) * system.get_bit_multiplier(type="C")
+
+        system_ops_per_sec = system.op_per_sec if self.alu_type == 'mxu' else system.vec_ops_per_sec
         return (
-            self.get_effective_num_ops(system)
-            * system.get_bit_multiplier(type="C")
-            / system.op_per_sec
-            / compute_efficiency,
+            num_ops / system_ops_per_sec / compute_efficiency,
             compute_efficiency,
         )
 
@@ -195,28 +192,7 @@ class Operator(object):
             power_gated_energy = energy
         return energy, power_gated_energy
 
-    # def get_compute_efficeincy(self, dim_size, mxu_size):
-    #     iters = ceil(dim_size/mxu_size)
-    #     efficiency = dim_size/ (iters * mxu_size)
-    #     return efficiency
-    #
-    # def get_compute_time(self, system):
-    #
-    #     if system.mxu_shape is not None:
-    #         left, upper, contract, outer = self.get_gemms()
-    #         if system.skip_compute:
-    #             contract = contract * self.density_w * self.density_a
-    #             if contract < 1:
-    #                 print(f'[Warning] Contract dimension < 1, after sparsified')
-    #             if system.skip_compute_on_noopt_output:
-    #                 left = left *self.density_o
-    #         mxu_mapping = np.sort([left, upper, contract])[::-1][:2]
-    #         effective_mxu_shape = np.sort(system.mxu_shape[-2:])[::-1]
-    #         compute_efficiency = np.prod([self.get_compute_efficeincy(d, m) for d, m in zip(mxu_mapping, effective_mxu_shape)])
-    #     else:
-    #         compute_efficiency = 1.0
-    #     return self.get_effective_num_ops(system) * system.get_bit_multiplier(type='C')/system.op_per_sec  / compute_efficiency
-
+  
     def get_compute_energy(self, system):
         return self.get_effective_num_ops(system) * system.energy_per_mac
 
@@ -308,69 +284,16 @@ class Operator(object):
         sz_list = self.get_sz_list(system)
         loc_list = self.get_loc_list()
         memory_time = 0
-        # print(sz_list[0],sz_list[1],sz_list[2])i
-        # print(self.op_type)
-        # print(loc_list[0],loc_list[1],loc_list[2])
-
-        if (
-            system.model_on_chip_mem_implications == True
-            and loc_list  ## You want to model the on-chip implications, i.e. data refetch
-            == ["off", "off", "off"]
-            and (  ## All your data is off chip
-                min(sz_list[0], sz_list[1]) * system.get_bit_multiplier(type="M")
-            )
-            > system.on_chip_mem_size
-        ):  ## and smallest input matrix is larger than SRAM
-            # for tensor_sz, loc in zip(sz_list, loc_list):
-            SRAM = int(system.on_chip_mem_size) / 2  # /2 for double buffering
-            input_a = int(sz_list[0])
-            input_w = int(sz_list[1])
-            output = int(sz_list[2])
-
-            if self.get_op_type(self.dim) == "Logit":
-                num_heads = self.dim[: self.get_effective_dim_len()][1]
-                # print(num_heads)
-                input_a = input_a / num_heads
-                input_w = input_w / num_heads
-            elif self.get_op_type(self.dim) == "Attend":
-                num_heads = self.dim[: self.get_effective_dim_len()][1]
-                input_w = input_w / num_heads
-                output = output / num_heads
-                # memory_amount
-            # else:
-            # memory_amount =      ceil(min(input_a,input_w)/SRAM)*(min(input_w,input_a,SRAM)+max(input_a,input_w)) + output
-            memory_amount = (
-                min(
-                    ceil(min(input_a, input_w) / SRAM) * max(input_a, input_w)
-                    + min(input_a, input_w),
-                    ceil(max(input_a, input_w) / SRAM) * min(input_a, input_w)
-                    + max(input_a, input_w),
-                )
-                + output
-            )
-            # print(input_a,input_w,output)
-            memory_time = (
-                memory_amount
-                * system.get_bit_multiplier(type="M")
-                / system.offchip_mem_bw
-            )
-            # print(memory_time,memory_amount)
-            if (
-                self.get_op_type(self.dim) == "Logit"
-                or self.get_op_type(self.dim) == "Attend"
-            ):
-                num_heads = self.dim[: self.get_effective_dim_len()][1]
-                memory_time = memory_time * num_heads
-
-        else:  ## Assume infinite memory
-            for tensor_sz, loc in zip(sz_list, loc_list):
-                if loc == "off":
-                    bw = system.offchip_mem_bw
-                elif loc == "on":
-                    bw = system.onchip_mem_bw
-                else:
-                    raise ValueError(f"Wrong bw allocation: {loc}.")
-                memory_time += tensor_sz * system.get_bit_multiplier(type="M") / bw
+    
+        ## Assume infinite memory
+        for tensor_sz, loc in zip(sz_list, loc_list):
+            if loc == "off":
+                bw = system.offchip_mem_bw
+            elif loc == "on":
+                bw = system.onchip_mem_bw
+            else:
+                raise ValueError(f"Wrong bw allocation: {loc}.")
+            memory_time += tensor_sz * system.get_bit_multiplier(type="M") / bw
         return memory_time
 
     def get_onchip_occupancy(self):
@@ -384,11 +307,11 @@ class Operator(object):
         return onchip_mem_occupancy
 
     def get_roofline(self, system, unit):
-        ideal_compute_time = self.get_ideal_compute_time(system=system)
-        (
-            ideal_complete_offchip_time,
-            ideal_complete_onchip_time,
-        ) = self.get_ideal_memory_time(system=system)
+        # ideal_compute_time = self.get_ideal_compute_time(system=system)
+        # (
+        #     ideal_complete_offchip_time,
+        #     ideal_complete_onchip_time,
+        # ) = self.get_ideal_memory_time(system=system)
         # x2 for ops -> MAC has 1 multiplication and 1 Addition hence 2.
         num_ops = self.get_effective_num_ops(system) * 2
         num_data = self.get_effective_num_data(system) * system.get_bit_multiplier(
@@ -396,16 +319,15 @@ class Operator(object):
         )
         op_intensity = num_ops / num_data
 
-        ##TODO: Why max here, are you assuming that compute and mem ops are completely parallel?
-        ideal_exec_time_complete_offchip = max(
-            ideal_compute_time, ideal_complete_offchip_time
-        )
-        ideal_exec_time_complete_onchip = max(
-            ideal_compute_time, ideal_complete_onchip_time
-        )
+        # ideal_exec_time_complete_offchip = max(
+        #     ideal_compute_time, ideal_complete_offchip_time
+        # )
+        # ideal_exec_time_complete_onchip = max(
+        #     ideal_compute_time, ideal_complete_onchip_time
+        # )
 
-        ideal_thrpt_complete_offchip = num_ops / ideal_exec_time_complete_offchip
-        ideal_thrpt_complete_onchip = num_ops / ideal_exec_time_complete_onchip
+        # ideal_thrpt_complete_offchip = num_ops / ideal_exec_time_complete_offchip
+        # ideal_thrpt_complete_onchip = num_ops / ideal_exec_time_complete_onchip
 
         compute_time, compute_efficiency = self.get_compute_time(system=system)
         mxu_energy, power_gated_mxu_energy = self.get_mxu_energy(system=system)
@@ -425,12 +347,14 @@ class Operator(object):
         # memory_energy = get_memory_energy(self,system)
         # noc_energy = get_noc_energy(self,system)
 
-        _, _, _, energies = get_matmul_access(self, system)
-        total_energy = min(energies)
+        # _, _, _, energies = get_matmul_access(self, system)
+        # total_energy = min(energies)
         # saved_energy_rate = (mxu_energy-power_gated_mxu_energy)/mxu_energy
         ret = {
             "Op Type": self.node.operator,
-            "Dimension(input, weight,output)": self.get_tensors(),
+            "Operator A": self.input_a,
+            "Operator B": self.input_w,
+            "Output": self.output,
             "Bound": boundedness,
             "C/M ratio": com_to_mem_ratio,
             "Op Intensity": op_intensity,
@@ -445,15 +369,15 @@ class Operator(object):
                 sum(self.get_sz_list(system)), type="M"
             ),
             f"Throughput ({unit.unit_compute})": unit.raw_to_unit(thrpt, type="C"),
-            f"Roofline Throughput offchip ({unit.unit_compute})": unit.raw_to_unit(
-                ideal_thrpt_complete_offchip, type="C"
-            ),
-            f"Roofline Throughput onchip ({unit.unit_compute})": unit.raw_to_unit(
-                ideal_thrpt_complete_onchip, type="C"
-            ),
+            # f"Roofline Throughput offchip ({unit.unit_compute})": unit.raw_to_unit(
+            #     ideal_thrpt_complete_offchip, type="C"
+            # ),
+            # f"Roofline Throughput onchip ({unit.unit_compute})": unit.raw_to_unit(
+            #     ideal_thrpt_complete_onchip, type="C"
+            # ),
             f"Compute Cycles": compute_time * system.frequency,
             f"Memory Cycles": memory_time * system.frequency,
-            f"Sparsity": (1 - self.density_w),
+            # f"Sparsity": (1 - self.density_w),
             # f'MXU energy (uJ)': mxu_energy *1e6,
             # f'PG-MXU energy (uJ)': power_gated_mxu_energy *1e6,
             # f'Total energy (uJ)': power_gated_mxu_energy*1e6,
@@ -461,7 +385,7 @@ class Operator(object):
             # f'Compute energy (mJ)': compute_energy *1e3,
             # f'Mem energy (mJ)': memory_energy *1e3 ,
             # f'NoC energy (mJ)': noc_energy *1e3 ,
-            f"Total energy (mJ)": total_energy * 1e3,
+            # f"Total energy (mJ)": total_energy * 1e3,
             # f'Onchip Memory Occupancy ({unit.unit_mem})':  unit.raw_to_unit(self.get_onchip_occupancy(), type='M'),
             # f'Left Onchip Memory ({unit.unit_mem})': unit.raw_to_unit(system.claim_onchip_mem(
             #     self.get_onchip_occupancy()), type='M'),

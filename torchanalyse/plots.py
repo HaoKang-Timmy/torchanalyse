@@ -58,7 +58,7 @@ def display_df(df):
     pd.set_option("display.precision", 3)
 
     ## Reordering columns
-    first_cols = ['Op Type','Dimension(input, weight,output)','Op Intensity','Flops (MFLOP)','Input_a (MB)','Input_w (MB)','Output (MB)','Total Data (MB)','Bound','Compute Cycles','Memory Cycles','C/M ratio','Cycles', '% of total time','Throughput (Tflops)']
+    first_cols = ['Op Type','Operator A','Operator B', 'Output', 'Op Intensity','Flops (MFLOP)','Input_a (MB)','Input_w (MB)','Output (MB)','Total Data (MB)','Bound','Compute Cycles','Memory Cycles','C/M ratio','Cycles', '% of total time','Throughput (Tflops)']
     last_cols = [col for col in df.columns if col not in first_cols]
     df = df.loc[:,first_cols+last_cols]
 

@@ -17,6 +17,7 @@ class System(object):
         compute_efficiency=1,
         memory_efficiency=1,
         flops=123,
+        vec_flops=4,
         mxu_shape=None,
         frequency=940,
         bits="bf16",
@@ -53,11 +54,9 @@ class System(object):
         self.compute_type = "ideal"
         self.accelerator_type = accelerator_type  ## can be structured or unstructured
         self.unstructured_efficiency = unstructured_efficiency
-        ## 4*128*128*940*2 = 123 TFLOPS
-        ## 4*128*128 -> PE arrays
-        ## 940 -> Freq
-        ## 2 -> MAC = multiple + accumulate
+
         self.flops = unit.unit_to_raw(flops, type="C")
+        self.vec_ops_per_sec = unit.unit_to_raw(vec_flops, type="C")
         # flops : # of floating point operations, flops/2 : # of (bf16) operations
         self.op_per_sec = self.flops / 2
         self.onchip_mem_bw_FC_array = self.onchip_mem_bw / self.op_per_sec

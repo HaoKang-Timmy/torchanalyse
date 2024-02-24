@@ -4,10 +4,12 @@ import math
 
 
 # get_gemms left, upper, contract, outer
-class Addmm(Operator):
+class Addmm(Operator):              ## Matrix Execution Unit
+    # https://pytorch.org/docs/stable/generated/torch.addmm.html
     # D = A * B + C  A(n.m) B(m,p) C(n,p)
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
+        self.alu_type = 'mxu'
 
     def get_tensors(self):
         n, m = self.node.inputs[1].shape
@@ -25,10 +27,12 @@ class Addmm(Operator):
         return n, p, m, 1
 
 
-class Addmv(Operator):
+class Addmv(Operator):          ## Vector Execution Unit 
+    # https://pytorch.org/docs/stable/generated/torch.addmv.html#torch.addmv
     # matrix * vector p = 1
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
+        self.alu_type = 'vxu'
 
     def get_tensors(self):
         n, m = self.node.inputs[1].shape
@@ -45,10 +49,12 @@ class Addmv(Operator):
         return n, p, m, 1
 
 
-class Bmm(Operator):
-    # batch matmul
+class Bmm(Operator):            ## Matrix Execution Unit
+    # batch matmul : https://pytorch.org/docs/stable/generated/torch.bmm.html#torch.bmm
+    # Out (B,n,p) = Input (B,n,m) * Mat2(B,m,p)
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
+        self.alu_type = 'mxu'
 
     def get_tensors(self):
         b, n, m = self.node.inputs[0].shape
@@ -68,10 +74,11 @@ class Bmm(Operator):
         return n, p, m, b
 
 
-class Baddbmm(Operator):
-    # batch matmul and add A * B + C = D, ABC are (b,m,n) likewise
+class Baddbmm(Operator):       ## Matrix Execution Unit
+    # batch matmul and add A * B + C = D, (b,n,m) * (b,m,p) + (b,n,p) = (b,n,p)
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
+        self.alu_type = 'mxu'
 
     def get_tensors(self):
         b, n, p = self.node.inputs[0].shape
@@ -91,8 +98,62 @@ class Baddbmm(Operator):
         b, m, p = self.node.inputs[2].shape
         return n, p, m, b
 
+class ScaledDotProductAttention(Operator):       ## Matrix Execution Unit
+    # https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html#torch-nn-functional-scaled-dot-product-attention
+    # L = Q * K'
+    # W = Softmax(L)
+    # O = L * V
 
-class Matmul(Operator):
+    ## Inputs = Q (N,...,L,E) , K(N,...,S,E), K(N,...,S,Ev)
+    ## Ouput (N,..., L, Ev)
+    # N:Batch size...:Any number of other batch dimensions (optional)
+    # S:Source sequence length
+    # L:Target sequence length
+    # E:Embedding dimension of the query and key
+    # Ev:Embedding dimension of the value
+
+    def __init__(self, node, density=(1.0, 1.0, 1.0)):
+        super().__init__(node, density)
+        self.alu_type = 'mxu'
+        # print(self.node.inputs[0].shape) 
+        # print(self.node.inputs[1].shape)
+        # print(self.node.inputs[2].shape)
+        # print(self.node.outputs[0].shape)
+
+    def get_tensors(self):
+        # tensor = self.node.inputs[0].shape #Q
+        # b, l, e = 
+         
+        tensor = self.node.inputs[1].shape #K
+        b, s, e = np.prod(tensor[:-2]), tensor[-2], tensor[-1] 
+        tensor = self.node.inputs[2].shape #V
+        b, s, ev = np.prod(tensor[:-2]), tensor[-2], tensor[-1]
+       
+        # Q K V O
+        return self.node.inputs[0].shape, (b, s, e+ev), self.node.outputs[0].shape 
+
+    def get_num_ops(self):
+        tensor = self.node.inputs[0].shape #Q
+        b, l, e = np.prod(tensor[:-2]), tensor[-2], tensor[-1] 
+        tensor = self.node.inputs[1].shape #K
+        b, s, e = np.prod(tensor[:-2]), tensor[-2], tensor[-1] 
+        tensor = self.node.inputs[2].shape #V
+        b, s, ev = np.prod(tensor[:-2]), tensor[-2], tensor[-1]
+
+        QK_ops = b*l*s*e
+        KV_ops = b*s*l*ev
+        return QK_ops + KV_ops
+    
+
+    def get_gemms(self):
+        # TODO might have some problems
+        b, n, m = self.node.inputs[1].shape
+        b, m, p = self.node.inputs[2].shape
+        return n, p, m, b
+
+
+class Matmul(Operator):       ## Matrix Execution Unit
+    # https://pytorch.org/docs/stable/generated/torch.matmul.html#torch-matmul
     # matmul A * B = C
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         if node.inputs[0].ndim == 1 and node.inputs[1].ndim == 1:
@@ -117,6 +178,7 @@ class Matmul(Operator):
             self.type = 6
             # aten::matmul([..., n, m], [..., m, p])
         super().__init__(node, density)
+        self.alu_type = 'mxu'
 
     def get_tensors(self):
         return (
@@ -183,13 +245,12 @@ class Matmul(Operator):
             return n, p, m, math.prod(b)
 
 
-class Mul(Operator):
+class Mul(Operator):          ## Vector Execution Unit
     # A * b, b is constant
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
-        # print(node.inputs[0].shape)
-        # print(node.inputs[1].shape)
-        # print(node.outputs[0].shape)
+        # print(node.inputs[0].shape,node.inputs[1].shape,node.outputs[0].shape)
+        self.alu_type = 'mxu'
 
     def get_tensors(self):
         return (
@@ -208,9 +269,10 @@ class Mul(Operator):
         return 0, 0, 0, 1
 
 
-class Convolution(Operator):
+class Convolution(Operator):       ## Matrix Execution Unit
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
+        self.alu_type = 'mxu'
 
     def get_tensors(self):
         return (
@@ -237,9 +299,10 @@ class Convolution(Operator):
         return M, D, N, B * H
 
 
-class Norm(Operator):
+class Norm(Operator):          ## Vector Execution Unit
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
+        self.alu_type = 'vxu'
 
     def get_tensors(self):
         # input and output
@@ -261,10 +324,10 @@ class Norm(Operator):
         return 0, 0, 0, 1
 
 
-class Avg(Operator):
-    # batch matmul and add A * B + C = D, ABC are (b,m,n) likewise
+class Avg(Operator):          ## Vector Execution Unit
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
+        self.alu_type = 'vxu'
 
     def get_tensors(self):
         # input and output
@@ -279,10 +342,10 @@ class Avg(Operator):
         return 0, 0, 0, 1
 
 
-class LeakyRelu(Operator):
-    # batch matmul and add A * B + C = D, ABC are (b,m,n) likewise
+class Special_Func(Operator):          ## Vector Execution Unit
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
+        self.alu_type = 'vxu'
 
     def get_tensors(self):
         # input and output
@@ -297,10 +360,10 @@ class LeakyRelu(Operator):
         return 0, 0, 0, 1
 
 
-class UpsampleBilinear2d(Operator):
-    # batch matmul and add A * B + C = D, ABC are (b,m,n) likewise
+class UpsampleBilinear2d(Operator):          ## Vector Execution Unit
     def __init__(self, node, density=(1.0, 1.0, 1.0)):
         super().__init__(node, density)
+        self.alu_type = 'vxu'
 
     def get_tensors(self):
         # input and output
@@ -322,6 +385,7 @@ operator_list = {
     "aten::baddbmm": Baddbmm,
     "aten::linear": Matmul,
     "aten::matmul": Matmul,
+    "aten::reciprocal": Special_Func,
     "aten::mul": Mul,
     "aten::mul_": Mul,
     "aten::_convolution": Convolution,
@@ -336,8 +400,10 @@ operator_list = {
     "aten::avg_pool2d": Avg,
     "aten::avg_pool3d": Avg,
     "aten::mean": Avg,
-    "aten::leaky_relu": LeakyRelu,
+    "aten::leaky_relu": Special_Func,
     "aten::upsample_bilinear2d": UpsampleBilinear2d,
+    "aten::cos": Special_Func,
+    "aten::sin": Special_Func,
     "aten::adaptive_max_pool1d": None,
     "aten::adaptive_max_pool2d": None,
     "aten::adaptive_max_pool3d": None,
@@ -366,7 +432,7 @@ operator_list = {
     "aten::hardtanh": None,
     "aten::index": None,
     "aten::int": None,
-    "aten::log_softmax": None,
+    "aten::log_softmax": Special_Func,
     "aten::lt": None,
     "aten::max_pool1d": None,
     "aten::max_pool1d_with_indices": None,
@@ -381,24 +447,25 @@ operator_list = {
     "aten::reflection_pad1d": None,
     "aten::reflection_pad2d": None,
     "aten::reflection_pad3d": None,
-    "aten::relu": None,
-    "aten::relu_": None,
+    "aten::relu": Special_Func,
+    "aten::relu_": Special_Func,
+    "aten::gelu": Special_Func,
     "aten::replication_pad1d": None,
     "aten::replication_pad2d": None,
     "aten::replication_pad3d": None,
     "aten::rsub": None,
     "aten::select": None,
-    "aten::sigmoid": None,
+    "aten::sigmoid": Special_Func,
     "aten::size": None,
     "aten::slice": None,
-    "aten::softmax": None,
+    "aten::softmax": Special_Func,
     "aten::softshrink": None,
     "aten::squeeze": None,
     "aten::stack": None,
     "aten::sub": None,
     "aten::sum": None,
     "aten::t": None,
-    "aten::tanh": None,
+    "aten::tanh": Special_Func,
     "aten::threshold": None,
     "aten::to": None,
     "aten::transpose": None,
@@ -410,4 +477,5 @@ operator_list = {
     "prim::listunpack": None,
     "prim::numtotensor": None,
     "prim::tupleconstruct": None,
+    "aten::scaled_dot_product_attention": ScaledDotProductAttention,
 }
